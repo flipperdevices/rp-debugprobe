@@ -29,6 +29,8 @@
 #define PROBE_IO_RAW
 #define PROBE_CDC_UART
 
+#define CDC_UARTS 2
+
 // PIO config
 #define PROBE_SM 0
 #define PROBE_PIN_OFFSET 2
@@ -42,6 +44,14 @@
 #define PROBE_UART_RX 5
 #define PROBE_UART_INTERFACE uart1
 #define PROBE_UART_BAUDRATE 115200
+
+#if CDC_UARTS == 2
+// if enabled, always ttyACM(n+1)
+#define PROBE_EXTRA_UART_TX 0
+#define PROBE_EXTRA_UART_RX 1
+#define PROBE_EXTRA_UART_INTERFACE uart0
+#define PROBE_EXTRA_UART_BAUDRATE 115200
+#endif
 
 #define PROBE_USB_CONNECTED_LED 25
 

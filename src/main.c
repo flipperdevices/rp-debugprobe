@@ -47,7 +47,7 @@
 #include "DAP.h"
 #include "hardware/structs/usb.h"
 
-// UART0 for debugprobe debug
+// UART0 available for debugprobe debug
 // UART1 for debugprobe to target device
 
 static uint8_t TxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
@@ -168,7 +168,8 @@ int main(void) {
 
     while (!THREADED) {
         tud_task();
-        cdc_task();
+        //cdc_task();
+        cdc_tasks();
 
 #if (PROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
         if (tud_vendor_available()) {

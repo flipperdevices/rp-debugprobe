@@ -34,8 +34,8 @@
 
 TaskHandle_t uart_taskhandle;
 TickType_t last_wake, interval = 100;
-volatile TickType_t break_expiry;
-volatile bool timed_break;
+volatile TickType_t break_expiry[CDC_UARTS];
+volatile bool timed_break[CDC_UARTS];
 
 /* Max 1 FIFO worth of data */
 // static uint8_t tx_buf[32];
@@ -133,9 +133,9 @@ bool cdc_task(uint8_t tty) {
     rx_buf[tty][rx_len++] = uart_getc(uart_ptr);
   }
 
-  if (tud_cdc_connected()) {
+  // if (tud_cdc_connected()) {
     //     was_connected = 1;
-    // if (tud_cdc_n_connected(tty)) {
+  if (tud_cdc_n_connected(tty)) {
     was_connected[tty] = 1;
     int written = 0;
     /* Implicit overflow if we don't write all the bytes to the host.
@@ -204,10 +204,14 @@ bool cdc_task(uint8_t tty) {
       }
     }
     /* Pending break handling */
-    if (timed_break) {
-      if (((int)break_expiry - (int)xTaskGetTickCount()) < 0) {
-        timed_break = false;
-        uart_set_break(PROBE_UART_INTERFACE, false);
+    if (timed_break[tty]) {
+      if (((int)break_expiry[tty] - (int)xTaskGetTickCount()) < 0) {
+        timed_break[tty] = false;
+        if(tty==0) {
+          uart_set_break(PROBE_UART_INTERFACE, false);
+        } else {
+          uart_set_break(PROBE_EXTRA_UART_INTERFACE, false);
+        }
 #ifdef PROBE_UART_TX_LED
         tx_led_debounce = 0;
 #endif
@@ -218,8 +222,12 @@ bool cdc_task(uint8_t tty) {
   } else if (was_connected[tty]) {
     // tud_cdc_write_clear();
     tud_cdc_n_write_clear(tty);
-    uart_set_break(PROBE_UART_INTERFACE, false);
-    timed_break = false;
+    if(tty==0) {
+      uart_set_break(PROBE_UART_INTERFACE, false);
+    } else {
+      uart_set_break(PROBE_EXTRA_UART_INTERFACE, false);
+    }
+    timed_break[tty] = false;
     was_connected[tty] = 0;
 #ifdef PROBE_UART_TX_LED
     tx_led_debounce = 0;
@@ -383,30 +391,43 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
 }
 
 void tud_cdc_send_break_cb(uint8_t itf, uint16_t wValue) {
+  uint8_t tty = itf;
   switch (wValue) {
   case 0:
-    uart_set_break(PROBE_UART_INTERFACE, false);
-    timed_break = false;
+    if(tty==0) {
+      uart_set_break(PROBE_UART_INTERFACE, false);
+    } else {
+      uart_set_break(PROBE_EXTRA_UART_INTERFACE, false);
+    }
+    timed_break[tty] = false;
 #ifdef PROBE_UART_TX_LED
     tx_led_debounce = 0;
 #endif
     break;
   case 0xffff:
-    uart_set_break(PROBE_UART_INTERFACE, true);
-    timed_break = false;
+    if(tty==0) {
+      uart_set_break(PROBE_UART_INTERFACE, true);
+    } else {
+      uart_set_break(PROBE_EXTRA_UART_INTERFACE, true);
+    }
+    timed_break[tty] = false;
 #ifdef PROBE_UART_TX_LED
     gpio_put(PROBE_UART_TX_LED, 1);
     tx_led_debounce = 1 << 30;
 #endif
     break;
   default:
-    uart_set_break(PROBE_UART_INTERFACE, true);
-    timed_break = true;
+    if(tty==0) {
+      uart_set_break(PROBE_UART_INTERFACE, true);
+    } else {
+      uart_set_break(PROBE_EXTRA_UART_INTERFACE, true);
+    }
+    timed_break[tty] = true;
 #ifdef PROBE_UART_TX_LED
     gpio_put(PROBE_UART_TX_LED, 1);
     tx_led_debounce = 1 << 30;
 #endif
-    break_expiry = xTaskGetTickCount() + (wValue * (configTICK_RATE_HZ / 1000));
+    break_expiry[tty] = xTaskGetTickCount() + (wValue * (configTICK_RATE_HZ / 1000));
     break;
   }
 }
